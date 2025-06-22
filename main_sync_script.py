@@ -1,4 +1,5 @@
 import os
+import shutil # Kept for general file operations, though not directly used in sync now
 import sys
 import time
 import subprocess
@@ -6,27 +7,26 @@ import subprocess
 # --- Configuration Paths ---
 # Define the paths for your SD card and local save folders.
 # Ensure these paths are accurate for your Steam Deck setup.
-SD_CARD_BASE_PATH = "/run/media/deck/MINUI"
-SD_CARD_SAVES_PATH = os.path.join(SD_CARD_BASE_PATH, "Saves", "GBA") # Create a path to the saves folder
+SD_CARD_BASE_PATH = "/run/media/deck/minui"
+SD_CARD_SAVES_PATH = os.path.join(SD_CARD_BASE_PATH, "Saves", "GBA")
 LOCAL_SAVES_PATH = "/home/deck/Documents/emulation/Emulation/saves/retroarch/saves"
 
 # Path to the directory containing your external srm-to-sav and sav-to-srm scripts.
 # This assumes the 'srm-to-sav' folder is a sub-directory of where main_sync_script.py is.
 EXTERNAL_CONVERSION_SCRIPTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "srm-to-sav")
 
-# AI was used for some of this so bug killing in progress
-
-# --- Helper Function ---
+# --- Helper Functions for User Output ---
 def display_message(message):
     """Prints a formatted message to the console."""
     print(f"\n--- {message} ---")
 
-# --- File Information Retrieval ---
+# --- Core Logic: File Information Retrieval ---
 def get_file_info(directory_path, extensions=None):
     """
     Scans a directory for files with specified extensions and returns their
     'true' base name (without extension or '.gba' suffix), full path, and modification time.
     The 'true' base name is used for consistent comparison between SD and local files.
+    Ignores files starting with "._".
     Returns a dictionary: {true_basename_lower: {'path': full_path, 'mtime': mtime, 'ext': actual_ext}}
     """
     files_info = {}
@@ -34,6 +34,11 @@ def get_file_info(directory_path, extensions=None):
         return files_info # Return empty if directory doesn't exist
 
     for filename in os.listdir(directory_path):
+        # --- NEW: Ignore files starting with "._" ---
+        if filename.startswith("._"):
+            # print(f"Skipping hidden/metadata file: {filename}") # Uncomment for debugging
+            continue
+
         # Split extension. For "game.gba.sav", this gives ("game.gba", ".sav")
         name_part_before_ext, actual_ext = os.path.splitext(filename)
 
@@ -103,6 +108,10 @@ def compare_folders(sd_info, local_info):
 def _run_conversion_script(script_name, input_path, output_path):
     """
     Helper function to execute an external conversion script using subprocess.
+    IMPORTANT: When passing arguments as a list to subprocess.run (shell=False, the default),
+    Python correctly handles spaces in file paths without requiring explicit quotes
+    around the path strings themselves. Adding quotes to the strings here would
+    make the literal quote characters part of the path, likely causing errors.
     """
     script_full_path = os.path.join(EXTERNAL_CONVERSION_SCRIPTS_DIR, script_name)
     if not os.path.exists(script_full_path):
@@ -116,6 +125,7 @@ def _run_conversion_script(script_name, input_path, output_path):
         os.makedirs(output_dir, exist_ok=True)
 
     # Use sys.executable to ensure the correct python interpreter is used to run the external script.
+    # Paths are passed as separate list elements; subprocess.run handles spaces correctly.
     command = [sys.executable, script_full_path, '-i', input_path, '-o', output_path]
     print(f"  Executing conversion: {' '.join(command)}") # Log the command for debugging
 
@@ -271,7 +281,7 @@ def print_differences(differences):
         for c in differences['conflicts']:
             print(f"\n  - Game Base Name: {c['basename']}")
             print(f"    SD Card : {os.path.basename(c['sd']['path'])} (Last Modified: {time.ctime(c['sd']['mtime'])}, Ext: {c['sd']['ext']})")
-            print(f"    Local   : {os.path.basename(c['local']['path'])} (Last Modified: {time.ctime(c['local']['mtime'])}, Ext: {c['local']['ext']})")
+            print(f"    Local   : {time.ctime(c['local']['mtime'])}, Ext: {c['local']['ext']})")
             # Suggest which version is newer
             if c['sd']['mtime'] > c['local']['mtime']:
                 print("    (SD Card version is NEWER)")
@@ -313,7 +323,7 @@ def main():
 
     if not os.path.isdir(EXTERNAL_CONVERSION_SCRIPTS_DIR):
         print(f"Error: External conversion scripts directory '{EXTERNAL_CONVERSION_SCRIPTS_DIR}' not found.")
-        print("Please ensure the 'srm-to-sav' folder is cloned into your 'gba-rom-save-tool' directory.")
+        print("Please ensure the 'srm-to-sav' folder is cloned or copied into your 'gba-rom-save-tool' directory.")
         print("Exiting.")
         return
 
