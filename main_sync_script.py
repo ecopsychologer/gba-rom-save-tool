@@ -7,7 +7,7 @@ import subprocess
 # --- Configuration Paths ---
 # Define the paths for your SD card and local save folders.
 # Ensure these paths are accurate for your Steam Deck setup.
-SD_CARD_BASE_PATH = "/run/media/deck/minui"
+SD_CARD_BASE_PATH = "/run/media/deck/MINUI"
 SD_CARD_SAVES_PATH = os.path.join(SD_CARD_BASE_PATH, "Saves", "GBA")
 LOCAL_SAVES_PATH = "/home/deck/Documents/emulation/Emulation/saves/retroarch/saves"
 
